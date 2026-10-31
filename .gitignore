@@ -8,3 +8,7 @@ node_modules/
 .env
 test-results/
 playwright-report/
+logs/ai-interactions.jsonl
+
+__pycache__/
+*.py[cod]

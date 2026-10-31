@@ -31,6 +31,30 @@ Invoices move through Draft, Pending Approval, then Approved or Rejected.
 dotnet test backend/InvoiceApp.sln
 ```
 
+## AI interaction logging
+
+Repository-local Copilot hooks in `.github/hooks/` append lifecycle events to
+`logs/ai-interactions.jsonl`. Start a new VS Code Copilot session in this
+repository to enable them. The hooks record prompts, tool calls and outcomes,
+session identifiers, available agent/subagent metadata, and model metadata only
+when the runtime supplies it. Missing metadata is omitted.
+
+The logger does not read or record process environment variables. It also
+redacts common secret fields and secret-like values in recorded text. Prompt
+and tool data can still contain sensitive information, so treat the local log
+as private and review it before sharing. The generated JSONL file is
+gitignored.
+
+`PreToolUse` is a Copilot command hook; if Python is unavailable or the log
+cannot be written, Copilot may deny that tool call. Keep Python 3 available
+and ensure the repository log directory is writable.
+
+Verify the hook logger without changing the repository log:
+
+```
+python3 .github/hooks/verify_ai_interaction_logging.py
+```
+
 ## Project layout
 
 ```
