@@ -3,7 +3,7 @@ using InvoiceApp.Domain;
 namespace InvoiceApp.Api;
 
 /// <summary>In-memory store so the demo app runs with no database. Seeded with a few invoices.</summary>
-public class InMemoryInvoiceRepository : IInvoiceRepository
+public class InMemoryInvoiceRepository : IAtomicInvoiceRepository
 {
     private readonly object _lock = new();
     private int _nextNumber = 1006;
@@ -55,6 +55,40 @@ public class InMemoryInvoiceRepository : IInvoiceRepository
             if (index >= 0) _invoices[index] = invoice;
         }
     }
+
+    public T ExecuteAtomically<T>(string invoiceId, Func<Invoice?, T> transition)
+    {
+        ArgumentNullException.ThrowIfNull(transition);
+
+        lock (_lock)
+        {
+            var index = _invoices.FindIndex(invoice => invoice.Id == invoiceId);
+            if (index < 0)
+            {
+                return transition(null);
+            }
+
+            var workingCopy = Copy(_invoices[index]);
+            var result = transition(workingCopy);
+            _invoices[index] = workingCopy;
+            return result;
+        }
+    }
+
+    private static Invoice Copy(Invoice invoice) =>
+        new()
+        {
+            Id = invoice.Id,
+            CustomerName = invoice.CustomerName,
+            Amount = invoice.Amount,
+            Status = invoice.Status,
+            CreatedAt = invoice.CreatedAt,
+            FirstApprovedBy = invoice.FirstApprovedBy,
+            FirstApprovedAt = invoice.FirstApprovedAt,
+            DecidedBy = invoice.DecidedBy,
+            DecidedAt = invoice.DecidedAt,
+            DecisionNote = invoice.DecisionNote
+        };
 
     public bool Remove(string id)
     {

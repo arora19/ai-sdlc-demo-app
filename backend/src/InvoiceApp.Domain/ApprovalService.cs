@@ -3,12 +3,13 @@ using System.Globalization;
 namespace InvoiceApp.Domain;
 
 /// <summary>
-/// Moves an invoice through its lifecycle: Draft -> PendingApproval -> Approved or Rejected.
-/// One invoice at a time, decided as a whole by a single approver.
+/// Moves invoices through submission, approval, and rejection, including staged approval
+/// for invoices requiring a second distinct approver.
 /// </summary>
 public class ApprovalService
 {
     private readonly IInvoiceRepository _repository;
+    private readonly object _fallbackTransitionLock = new();
 
     public ApprovalService(IInvoiceRepository repository)
     {
@@ -32,29 +33,72 @@ public class ApprovalService
 
     public Invoice Approve(string invoiceId, string approver, ApprovalAuthority authority)
     {
-        var invoice = Find(invoiceId);
-        EnsurePending(invoice);
-
-        var (limit, limitDescription) = authority switch
+        return Transition(invoiceId, invoice =>
         {
-            ApprovalAuthority.Manager => (50_000m, "Manager approval limit"),
-            ApprovalAuthority.Director => (500_000m, "Director single-approval limit"),
-            _ => throw new ArgumentOutOfRangeException(nameof(authority), authority, "Unknown approval authority.")
-        };
+            EnsureKnownAuthority(authority);
 
-        if (invoice.Amount > limit)
-        {
-            var amount = invoice.Amount.ToString("#,##0.############################", CultureInfo.InvariantCulture);
-            var formattedLimit = limit.ToString("#,##0.############################", CultureInfo.InvariantCulture);
-            throw new InvalidOperationException(
-                $"Invoice {invoiceId} amount {amount} exceeds {limitDescription} of {formattedLimit}.");
-        }
+            if (invoice.Status == InvoiceStatus.AwaitingSecondApproval)
+            {
+                if (authority != ApprovalAuthority.Director)
+                {
+                    throw new InvalidOperationException(
+                        $"Only a Director may provide the second approval for invoice {invoiceId}.");
+                }
 
-        invoice.Status = InvoiceStatus.Approved;
-        invoice.DecidedBy = approver;
-        invoice.DecidedAt = DateTime.UtcNow;
-        _repository.Update(invoice);
-        return invoice;
+                if (string.IsNullOrWhiteSpace(invoice.FirstApprovedBy) || invoice.FirstApprovedAt is null)
+                {
+                    throw new InvalidOperationException(
+                        $"Invoice {invoiceId} has no recorded first approval and cannot receive a second approval.");
+                }
+
+                if (string.Equals(invoice.FirstApprovedBy, approver, StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new InvalidOperationException(
+                        $"Invoice {invoiceId} requires a second approver different from the first approver.");
+                }
+
+                if (invoice.Amount <= 500_000m)
+                {
+                    throw new InvalidOperationException(
+                        $"Invoice {invoiceId} is not eligible for a second approval because its amount does not exceed 500,000.");
+                }
+
+                invoice.Status = InvoiceStatus.Approved;
+                invoice.DecidedBy = approver;
+                invoice.DecidedAt = DateTime.UtcNow;
+                return invoice;
+            }
+
+            EnsurePending(invoice);
+
+            if (invoice.Amount > 500_000m)
+            {
+                invoice.Status = InvoiceStatus.AwaitingSecondApproval;
+                invoice.FirstApprovedBy = approver;
+                invoice.FirstApprovedAt = DateTime.UtcNow;
+                return invoice;
+            }
+
+            var (limit, limitDescription) = authority switch
+            {
+                ApprovalAuthority.Manager => (50_000m, "Manager approval limit"),
+                ApprovalAuthority.Director => (500_000m, "Director approval limit"),
+                _ => throw new ArgumentOutOfRangeException(nameof(authority), authority, "Unknown approval authority.")
+            };
+
+            if (invoice.Amount > limit)
+            {
+                var amount = invoice.Amount.ToString("#,##0.############################", CultureInfo.InvariantCulture);
+                var formattedLimit = limit.ToString("#,##0.############################", CultureInfo.InvariantCulture);
+                throw new InvalidOperationException(
+                    $"Invoice {invoiceId} amount {amount} exceeds {limitDescription} of {formattedLimit}.");
+            }
+
+            invoice.Status = InvoiceStatus.Approved;
+            invoice.DecidedBy = approver;
+            invoice.DecidedAt = DateTime.UtcNow;
+            return invoice;
+        });
     }
 
     public Invoice Approve(string invoiceId, string approver) =>
@@ -67,15 +111,34 @@ public class ApprovalService
             throw new ArgumentException("A reason is required to reject an invoice.", nameof(reason));
         }
 
-        var invoice = Find(invoiceId);
-        EnsurePending(invoice);
+        return Transition(invoiceId, invoice =>
+        {
+            EnsurePending(invoice);
 
-        invoice.Status = InvoiceStatus.Rejected;
-        invoice.DecidedBy = approver;
-        invoice.DecidedAt = DateTime.UtcNow;
-        invoice.DecisionNote = reason;
-        _repository.Update(invoice);
-        return invoice;
+            invoice.Status = InvoiceStatus.Rejected;
+            invoice.DecidedBy = approver;
+            invoice.DecidedAt = DateTime.UtcNow;
+            invoice.DecisionNote = reason;
+            return invoice;
+        });
+    }
+
+    private T Transition<T>(string invoiceId, Func<Invoice, T> transition)
+    {
+        if (_repository is IAtomicInvoiceRepository atomicRepository)
+        {
+            return atomicRepository.ExecuteAtomically(
+                invoiceId,
+                invoice => transition(invoice ?? throw new KeyNotFoundException($"Invoice {invoiceId} was not found.")));
+        }
+
+        lock (_fallbackTransitionLock)
+        {
+            var invoice = Find(invoiceId);
+            var result = transition(invoice);
+            _repository.Update(invoice);
+            return result;
+        }
     }
 
     private Invoice Find(string invoiceId) =>
@@ -88,6 +151,14 @@ public class ApprovalService
         {
             throw new InvalidOperationException(
                 $"Invoice {invoice.Id} is {invoice.Status}; only pending invoices can be decided.");
+        }
+    }
+
+    private static void EnsureKnownAuthority(ApprovalAuthority authority)
+    {
+        if (authority is not ApprovalAuthority.Manager and not ApprovalAuthority.Director)
+        {
+            throw new ArgumentOutOfRangeException(nameof(authority), authority, "Unknown approval authority.");
         }
     }
 }

@@ -32,7 +32,6 @@ public class ApprovalsControllerTests
 
     [Theory]
     [InlineData("Approver", "manager-reviewer", 50_001, "Invoice INV-1 amount 50,001 exceeds Manager approval limit of 50,000.")]
-    [InlineData("Admin", "director-reviewer", 500_001, "Invoice INV-1 amount 500,001 exceeds Director single-approval limit of 500,000.")]
     public void Approve_OverLimitReturnsConflictAndPreservesInvoice(
         string role,
         string username,
@@ -52,6 +51,29 @@ public class ApprovalsControllerTests
         Assert.Equal(StatusCodes.Status409Conflict, conflict.StatusCode);
         Assert.Equal(expectedMessage, ErrorMessage(conflict.Value));
         Assert.Equal(before, Snapshot(repository.GetById(invoice.Id)!));
+    }
+
+    [Theory]
+    [InlineData("Approver", "manager-reviewer")]
+    [InlineData("Admin", "director-reviewer")]
+    public void Approve_HighValueFirstApprovalReturnsAwaitingSecondApproval(
+        string role,
+        string username)
+    {
+        var invoice = PendingInvoice(500_001m);
+        var repository = new FakeInvoiceRepository(invoice);
+        var controller = ControllerFor(repository, new UserSession(username, role));
+
+        var result = controller.Approve(invoice.Id);
+
+        var awaiting = Assert.IsType<Invoice>(Assert.IsType<OkObjectResult>(result.Result).Value);
+        Assert.Equal(InvoiceStatus.AwaitingSecondApproval, awaiting.Status);
+        Assert.Equal(username, awaiting.FirstApprovedBy);
+        Assert.NotNull(awaiting.FirstApprovedAt);
+        Assert.Null(awaiting.DecidedBy);
+        Assert.Null(awaiting.DecidedAt);
+        Assert.Equal(InvoiceStatus.AwaitingSecondApproval, repository.GetById(invoice.Id)?.Status);
+        Assert.Equal(username, repository.GetById(invoice.Id)?.FirstApprovedBy);
     }
 
     private static ApprovalsController ControllerFor(FakeInvoiceRepository repository, UserSession session)

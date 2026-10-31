@@ -16,11 +16,11 @@
 
 ## 3. Two-approver implementation and unit tests
 
-- [ ] 3.1 Add `AwaitingSecondApproval` and retain the first approver identity/time plus the final Director decision in the in-memory invoice state; verify both Manager and Director can provide the first approval and that it is non-final.
-- [ ] 3.2 Implement a repository-level atomic approval transition with synchronization so read, validation, and mutation are serialized for an invoice; verify the transition checks state and approver identity inside the critical section before changing any invoice field.
-- [ ] 3.3 Add unit tests for 500,001 first approval, intermediate state, completion by a different Director, same-user denial, Manager second-approval denial, and complete before/after snapshots on every denied path; verify any previously recorded approval remains identical after denial.
-- [ ] 3.4 Add deterministic concurrency tests for competing same-user and distinct-Director requests using synchronization barriers/latches; verify no interleaving can bypass distinct-user/Director rules and at most one valid second decision is persisted.
-- [ ] 3.5 Run `dotnet test backend/InvoiceApp.sln`; verify all tests pass, the correct decision history is retained, and only a distinct Director second approval finalizes a high-value invoice.
+- [x] 3.1 Add `AwaitingSecondApproval` and retain the first approver identity/time plus the final Director decision in the in-memory invoice state; verify both Manager and Director can provide the first approval and that it is non-final.
+- [x] 3.2 Implement a repository-level atomic approval transition with synchronization so read, validation, and mutation are serialized for an invoice; verify the transition checks state and approver identity inside the critical section before changing any invoice field.
+- [x] 3.3 Add unit tests for 500,001 first approval, intermediate state, completion by a different Director, same-user denial, Manager second-approval denial, and complete before/after snapshots on every denied path; verify any previously recorded approval remains identical after denial.
+- [x] 3.4 Add deterministic concurrency tests for competing same-user and distinct-Director requests using synchronization barriers/latches; verify no interleaving can bypass distinct-user/Director rules and at most one valid second decision is persisted.
+- [x] 3.5 Run `dotnet test backend/InvoiceApp.sln`; verify all tests pass, the correct decision history is retained, and only a distinct Director second approval finalizes a high-value invoice.
 - [ ] 3.6 Keep the two-approver phase in a separate commit from the single-approver phase; verify each commit can be checked out independently with its corresponding backend test suite passing.
 
 ## 4. Playwright E2E testing
