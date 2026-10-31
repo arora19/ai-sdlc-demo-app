@@ -20,7 +20,18 @@ public class ApprovalsController : ApiControllerBase
 
     [HttpPost("{invoiceId}/approve")]
     public ActionResult<Invoice> Approve(string invoiceId) =>
-        Handle(() => _approvals.Approve(invoiceId, HttpContext.GetSession().Username));
+        Handle(() =>
+        {
+            var session = HttpContext.GetSession();
+            var authority = session.Role switch
+            {
+                "Approver" => ApprovalAuthority.Manager,
+                "Admin" => ApprovalAuthority.Director,
+                _ => throw new InvalidOperationException("This role has no invoice approval authority.")
+            };
+
+            return _approvals.Approve(invoiceId, session.Username, authority);
+        });
 
     [HttpPost("{invoiceId}/reject")]
     public ActionResult<Invoice> Reject(string invoiceId, [FromBody] RejectRequest request) =>

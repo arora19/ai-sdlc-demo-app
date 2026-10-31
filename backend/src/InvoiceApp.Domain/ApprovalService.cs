@@ -1,3 +1,5 @@
+using System.Globalization;
+
 namespace InvoiceApp.Domain;
 
 /// <summary>
@@ -28,10 +30,25 @@ public class ApprovalService
         return invoice;
     }
 
-    public Invoice Approve(string invoiceId, string approver)
+    public Invoice Approve(string invoiceId, string approver, ApprovalAuthority authority)
     {
         var invoice = Find(invoiceId);
         EnsurePending(invoice);
+
+        var (limit, limitDescription) = authority switch
+        {
+            ApprovalAuthority.Manager => (50_000m, "Manager approval limit"),
+            ApprovalAuthority.Director => (500_000m, "Director single-approval limit"),
+            _ => throw new ArgumentOutOfRangeException(nameof(authority), authority, "Unknown approval authority.")
+        };
+
+        if (invoice.Amount > limit)
+        {
+            var amount = invoice.Amount.ToString("#,##0.############################", CultureInfo.InvariantCulture);
+            var formattedLimit = limit.ToString("#,##0.############################", CultureInfo.InvariantCulture);
+            throw new InvalidOperationException(
+                $"Invoice {invoiceId} amount {amount} exceeds {limitDescription} of {formattedLimit}.");
+        }
 
         invoice.Status = InvoiceStatus.Approved;
         invoice.DecidedBy = approver;
@@ -39,6 +56,9 @@ public class ApprovalService
         _repository.Update(invoice);
         return invoice;
     }
+
+    public Invoice Approve(string invoiceId, string approver) =>
+        Approve(invoiceId, approver, ApprovalAuthority.Manager);
 
     public Invoice Reject(string invoiceId, string approver, string reason)
     {

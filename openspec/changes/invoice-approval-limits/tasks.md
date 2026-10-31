@@ -2,16 +2,16 @@
 
 ## 1. Policy baseline and mutation testing before improvements
 
-- [ ] 1.1 Verify the implementation plan matches the owner-approved policy in `design.md` and `specs/invoice-approval-limits/spec.md`; verify no task remains blocked on a human decision.
+- [x] 1.1 Verify the implementation plan matches the owner-approved policy in `design.md` and `specs/invoice-approval-limits/spec.md`; verify no task remains blocked on a human decision.
 - [ ] 1.2 Add a pinned, repository-local Stryker.NET test-tool configuration without changing runtime dependencies; verify the tool installs and runs against the existing backend tests.
 - [ ] 1.3 Run the mutation suite before implementation and preserve its report and score as the baseline; verify the existing backend test suite passes unchanged.
 
 ## 2. Single-approver implementation and unit tests
 
-- [ ] 2.1 Map existing `Approver` to Manager and `Admin` to Director only at the invoice-approval boundary; verify API/service tests cover both mappings and existing Admin-only destructive authorization remains unchanged.
-- [ ] 2.2 Enforce the inclusive single-approver limits; verify unit tests cover Manager approval at 50,000, Manager denial at 50,001, Director approval at 50,000 and 500,000, and denial for any single-approval finalization at 500,001.
-- [ ] 2.3 Add unit tests proving every denied approval attempt preserves the complete invoice snapshot and an actual rejection changes only outcome/decision metadata, not submitted customer data or amount; verify snapshots include decision metadata and any existing approval history.
-- [ ] 2.4 Run `dotnet test backend/InvoiceApp.sln`; verify all existing and new tests pass and invoices above 500,000 cannot be finalized in this phase.
+- [x] 2.1 Map existing `Approver` to Manager and `Admin` to Director only at the invoice-approval boundary; verify API/service tests cover both mappings and existing Admin-only destructive authorization remains unchanged.
+- [x] 2.2 Enforce the inclusive single-approver limits; verify unit tests cover Manager approval at 50,000, Manager denial at 50,001, Director approval at 50,000 and 500,000, and denial for any single-approval finalization at 500,001.
+- [x] 2.3 Add unit tests proving every denied approval attempt preserves the complete invoice snapshot and an actual rejection changes only outcome/decision metadata, not submitted customer data or amount; verify snapshots include decision metadata and any existing approval history.
+- [x] 2.4 Run `dotnet test backend/InvoiceApp.sln`; verify all existing and new tests pass and invoices above 500,000 cannot be finalized in this phase.
 - [ ] 2.5 Keep the single-approver phase in its own commit with no two-approver implementation; verify the commit is isolated and the backend suite passes at that commit.
 
 ## 3. Two-approver implementation and unit tests
