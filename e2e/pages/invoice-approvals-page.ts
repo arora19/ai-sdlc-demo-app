@@ -19,6 +19,11 @@ export class InvoiceApprovalsPage {
     await this.page.getByRole('button', { name: 'Create invoice' }).click();
   }
 
+  async createAndSubmitInvoice(customerName: string, amount: number): Promise<string> {
+    await this.createInvoice(customerName, amount);
+    return this.submitInvoice(customerName);
+  }
+
   async submitInvoice(customerName: string): Promise<string> {
     const row = this.invoiceRow(customerName);
     const submitButton = row.getByRole('button', {
@@ -37,6 +42,18 @@ export class InvoiceApprovalsPage {
 
   async openApprovals() {
     await this.page.getByRole('tab', { name: 'Approvals' }).click();
+  }
+
+  async openInvoices() {
+    await this.page.getByRole('tab', { name: 'Invoices' }).click();
+  }
+
+  async signOut() {
+    await this.page.getByRole('button', { name: 'Sign out' }).click();
+  }
+
+  async approvePendingInvoice(customerName: string, buttonName: string) {
+    await this.pendingInvoice(customerName).getByRole('button', { name: buttonName }).click();
   }
 
   invoiceRow(customerName: string) {

@@ -36,6 +36,12 @@ an invoice above 500,000, it enters `AwaitingSecondApproval` until the distinct
 Director records the second approval; only then is it Approved. Otherwise it
 can be Approved within the actor's limit or Rejected with a reason.
 
+An approval attempt denied by an amount limit or lifecycle rule is not a
+rejection decision: it leaves the invoice status, submitted details, and
+decision history unchanged. An authorized rejection is an actual decision; it
+sets the status to Rejected and records the rejecting user, decision time, and
+reason while preserving the submitted customer details and amount.
+
 Invoices and approval decisions are stored in memory only. They are lost when
 the application restarts and are not shared across multiple app instances.
 

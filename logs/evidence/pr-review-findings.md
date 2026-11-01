@@ -148,3 +148,22 @@ persisted invoice snapshot/final state.
 - `openspec validate invoice-approval-limits --strict` — valid.
 - `git diff --check` — passed.
 - No Git commit was created. The existing AI interaction log was not modified.
+
+## Subsequent E2E update — 2026-11-01
+
+The F-03 `Deferred` disposition above records the state of the review; it is
+preserved and is not rewritten as a different PR verdict. The deferred
+page-object Playwright coverage was subsequently added for the inclusive
+Manager and Director limits, Manager denial, both first-approver paths above
+500,000, hidden same-user and Manager second-approval denials, distinct
+Director completion, and non-actionable completed invoices.
+
+Verification after this follow-up:
+
+- `cd e2e && npm test` — passed, 5 tests.
+- `dotnet test backend/InvoiceApp.sln` — passed, 40 tests.
+- `openspec validate invoice-approval-limits --strict` — valid.
+- `git diff --check` — passed.
+
+This follow-up does not claim that a pre-implementation mutation baseline
+exists, change the existing PR review dispositions, or create a commit.
