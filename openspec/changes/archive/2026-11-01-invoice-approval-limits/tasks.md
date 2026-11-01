@@ -41,4 +41,4 @@
 ## 7. Final documentation
 
 - [x] 7.1 Update the README and any directly affected user-facing docs with the approved role mapping, limits, high-value approval progress, rejection/denial distinction, and in-memory restart limitation; verify documented behavior matches the final spec and UI.
-- [ ] 7.2 Record baseline and final mutation-test results and verify documented test commands run successfully; then archive the completed OpenSpec change and verify the resulting main spec and archive validate.
+- [x] 7.2 Record baseline and final mutation-test results and verify documented test commands run successfully; then archive the completed OpenSpec change and verify the resulting main spec and archive validate.
