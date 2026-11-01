@@ -9,7 +9,6 @@ namespace InvoiceApp.Domain;
 public class ApprovalService
 {
     private readonly IInvoiceRepository _repository;
-    private readonly object _fallbackTransitionLock = new();
 
     public ApprovalService(IInvoiceRepository repository)
     {
@@ -18,17 +17,17 @@ public class ApprovalService
 
     public Invoice Submit(string invoiceId)
     {
-        var invoice = Find(invoiceId);
-
-        if (invoice.Status != InvoiceStatus.Draft)
+        return Transition(invoiceId, invoice =>
         {
-            throw new InvalidOperationException(
-                $"Invoice {invoiceId} is {invoice.Status}; only drafts can be submitted.");
-        }
+            if (invoice.Status != InvoiceStatus.Draft)
+            {
+                throw new InvalidOperationException(
+                    $"Invoice {invoiceId} is {invoice.Status}; only drafts can be submitted.");
+            }
 
-        invoice.Status = InvoiceStatus.PendingApproval;
-        _repository.Update(invoice);
-        return invoice;
+            invoice.Status = InvoiceStatus.PendingApproval;
+            return invoice;
+        });
     }
 
     public Invoice Approve(string invoiceId, string approver, ApprovalAuthority authority)
@@ -125,25 +124,16 @@ public class ApprovalService
 
     private T Transition<T>(string invoiceId, Func<Invoice, T> transition)
     {
-        if (_repository is IAtomicInvoiceRepository atomicRepository)
+        if (_repository is not IAtomicInvoiceRepository atomicRepository)
         {
-            return atomicRepository.ExecuteAtomically(
-                invoiceId,
-                invoice => transition(invoice ?? throw new KeyNotFoundException($"Invoice {invoiceId} was not found.")));
+            throw new NotSupportedException(
+                "Invoice transitions require a repository that supports atomic execution.");
         }
 
-        lock (_fallbackTransitionLock)
-        {
-            var invoice = Find(invoiceId);
-            var result = transition(invoice);
-            _repository.Update(invoice);
-            return result;
-        }
+        return atomicRepository.ExecuteAtomically(
+            invoiceId,
+            invoice => transition(invoice ?? throw new KeyNotFoundException($"Invoice {invoiceId} was not found.")));
     }
-
-    private Invoice Find(string invoiceId) =>
-        _repository.GetById(invoiceId)
-        ?? throw new KeyNotFoundException($"Invoice {invoiceId} was not found.");
 
     private static void EnsurePending(Invoice invoice)
     {

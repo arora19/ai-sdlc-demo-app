@@ -23,7 +23,19 @@ These are demo accounts for a local, in-memory app. They are not real credential
 2. Submit it for approval.
 3. An approver approves it, or rejects it with a reason.
 
-Invoices move through Draft, Pending Approval, then Approved or Rejected.
+For invoice approvals, the existing `Approver` role acts as a Manager and may
+approve amounts up to 50,000 inclusive. The existing `Admin` role acts as a
+Director and may approve amounts up to 500,000 inclusive. An invoice above
+500,000 requires two distinct approvers: either role may provide the first
+approval, then a different Director must provide the second approval.
+
+The invoice moves from Draft to Pending Approval. After the first approval of
+an invoice above 500,000, it enters `AwaitingSecondApproval` until the distinct
+Director records the second approval; only then is it Approved. Otherwise it
+can be Approved within the actor's limit or Rejected with a reason.
+
+Invoices and approval decisions are stored in memory only. They are lost when
+the application restarts and are not shared across multiple app instances.
 
 ## Tests
 

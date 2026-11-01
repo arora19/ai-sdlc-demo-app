@@ -100,5 +100,15 @@ The remaining survivors do not bypass the tested amount, authority, lifecycle,
 state-integrity, or persistence rules. They are exception-message mutations,
 the unreachable Director limit description, and a compile-error mutant. The
 single no-coverage mutant is likewise an unreachable fallback switch message.
-Reports were generated under /tmp and are not included; this file preserves the
+Reports were generated under /tmp; verbatim copies of the raw JSON reports are
+preserved under logs/evidence/mutation-reports. This file also preserves the
 observed scores, mutant outcomes, and test changes.
+
+Measurement context and artifact availability
+----------------------------------------------
+The initial measurement is a baseline before the focused ApprovalService
+unit-test improvements, not a pre-implementation baseline. The feature
+implementation was already present when that measurement was run. The raw JSON
+reports were available at /tmp/stryker-baseline-json and
+/tmp/stryker-final-json and have been preserved verbatim in
+logs/evidence/mutation-reports; no report contents have been reconstructed.

@@ -79,6 +79,49 @@ public class ApprovalServiceTests
             };
     }
 
+    private sealed class SubmissionGateInvoiceRepository : IAtomicInvoiceRepository, IDisposable
+    {
+        private readonly FakeInvoiceRepository _repository;
+
+        public SubmissionGateInvoiceRepository(params Invoice[] invoices) =>
+            _repository = new FakeInvoiceRepository(invoices);
+
+        public ManualResetEventSlim SubmissionEntered { get; } = new(false);
+        public ManualResetEventSlim ReleaseSubmission { get; } = new(false);
+
+        public IReadOnlyList<Invoice> GetAll() => _repository.GetAll();
+        public Invoice? GetById(string id) => _repository.GetById(id);
+        public IReadOnlyList<Invoice> GetByIds(IEnumerable<string> ids) => _repository.GetByIds(ids);
+        public Invoice Add(Invoice invoice) => _repository.Add(invoice);
+        public void Update(Invoice invoice) => _repository.Update(invoice);
+        public bool Remove(string id) => _repository.Remove(id);
+
+        public T ExecuteAtomically<T>(string invoiceId, Func<Invoice?, T> transition) =>
+            _repository.ExecuteAtomically(invoiceId, invoice =>
+            {
+                var previousStatus = invoice?.Status;
+                var result = transition(invoice);
+
+                if (previousStatus == InvoiceStatus.Draft &&
+                    invoice?.Status == InvoiceStatus.PendingApproval)
+                {
+                    SubmissionEntered.Set();
+                    if (!ReleaseSubmission.Wait(TimeSpan.FromSeconds(10)))
+                    {
+                        throw new TimeoutException("The submission transition was not released.");
+                    }
+                }
+
+                return result;
+            });
+
+        public void Dispose()
+        {
+            SubmissionEntered.Dispose();
+            ReleaseSubmission.Dispose();
+        }
+    }
+
     private static Invoice Persisted(FakeInvoiceRepository repository, string invoiceId) =>
         repository.GetById(invoiceId) ?? throw new InvalidOperationException("Expected invoice to be persisted.");
 
@@ -121,22 +164,60 @@ public class ApprovalServiceTests
     }
 
     [Fact]
-    public void Submit_UsesNonAtomicRepositoryFallbackToPersistPendingState()
+    public void Submit_RejectsNonAtomicRepositoryWithoutChangingAnyInvoiceField()
     {
         var repository = new NonAtomicCopyingInvoiceRepository(InvoiceWith("INV-1", InvoiceStatus.Draft));
 
-        var result = ServiceFor(repository).Submit("INV-1");
+        var before = Snapshot(repository.GetById("INV-1")!);
 
-        Assert.Equal(InvoiceStatus.PendingApproval, result.Status);
-        Assert.Equal(InvoiceStatus.PendingApproval, repository.GetById("INV-1")?.Status);
+        Assert.Throws<NotSupportedException>(() => ServiceFor(repository).Submit("INV-1"));
+
+        Assert.Equal(before, Snapshot(repository.GetById("INV-1")!));
     }
 
     [Fact]
     public void Submit_ThrowsWhenInvoiceDoesNotExist()
     {
-        var repository = new NonAtomicCopyingInvoiceRepository();
+        var repository = new FakeInvoiceRepository();
 
         Assert.Throws<KeyNotFoundException>(() => ServiceFor(repository).Submit("INV-404"));
+    }
+
+    [Fact]
+    public async Task Submit_AndApprove_ConcurrentTransitionsAreSerializedAndCannotOverwrite()
+    {
+        using var repository = new SubmissionGateInvoiceRepository(InvoiceWith("INV-1", InvoiceStatus.Draft));
+        var service = ServiceFor(repository);
+        var submissionTask = Task.Run(() => service.Submit("INV-1"));
+
+        Assert.True(
+            repository.SubmissionEntered.Wait(TimeSpan.FromSeconds(10)),
+            "Submission did not run inside the atomic repository transition.");
+
+        using var approvalStarted = new ManualResetEventSlim(false);
+        var approvalTask = Task.Run(() =>
+        {
+            approvalStarted.Set();
+            return service.Approve("INV-1", "reviewer-1", ApprovalAuthority.Manager);
+        });
+
+        try
+        {
+            Assert.True(
+                approvalStarted.Wait(TimeSpan.FromSeconds(10)),
+                "The approval request did not start while submission was in progress.");
+            repository.ReleaseSubmission.Set();
+            var results = await Task.WhenAll(submissionTask, approvalTask);
+
+            Assert.Equal(InvoiceStatus.PendingApproval, results[0].Status);
+            Assert.Equal(InvoiceStatus.Approved, results[1].Status);
+            Assert.Equal("reviewer-1", results[1].DecidedBy);
+            Assert.Equal(InvoiceStatus.Approved, repository.GetById("INV-1")?.Status);
+        }
+        finally
+        {
+            repository.ReleaseSubmission.Set();
+        }
     }
 
     [Fact]
@@ -174,19 +255,17 @@ public class ApprovalServiceTests
     }
 
     [Fact]
-    public void Approve_UsesNonAtomicRepositoryFallbackToPersistApproval()
+    public void Approve_RejectsNonAtomicRepositoryWithoutChangingAnyInvoiceField()
     {
         var invoice = InvoiceWith("INV-1", InvoiceStatus.PendingApproval);
         invoice.Amount = 50_000m;
         var repository = new NonAtomicCopyingInvoiceRepository(invoice);
+        var before = Snapshot(repository.GetById("INV-1")!);
 
-        var result = ServiceFor(repository).Approve("INV-1", "reviewer-1", ApprovalAuthority.Manager);
-        var persisted = repository.GetById("INV-1");
+        Assert.Throws<NotSupportedException>(() =>
+            ServiceFor(repository).Approve("INV-1", "reviewer-1", ApprovalAuthority.Manager));
 
-        Assert.Equal(InvoiceStatus.Approved, result.Status);
-        Assert.Equal(InvoiceStatus.Approved, persisted?.Status);
-        Assert.Equal("reviewer-1", persisted?.DecidedBy);
-        Assert.NotNull(persisted?.DecidedAt);
+        Assert.Equal(before, Snapshot(repository.GetById("INV-1")!));
     }
 
     [Fact]
