@@ -1,0 +1,86 @@
+{
+  "version": 1,
+  "hooks": {
+    "SessionStart": [
+      {
+        "type": "command",
+        "bash": "python3 .github/hooks/log_ai_interaction.py",
+        "powershell": "py -3 .github/hooks/log_ai_interaction.py",
+        "cwd": ".",
+        "timeoutSec": 10
+      }
+    ],
+    "SessionEnd": [
+      {
+        "type": "command",
+        "bash": "python3 .github/hooks/log_ai_interaction.py",
+        "powershell": "py -3 .github/hooks/log_ai_interaction.py",
+        "cwd": ".",
+        "timeoutSec": 10
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "type": "command",
+        "bash": "python3 .github/hooks/log_ai_interaction.py",
+        "powershell": "py -3 .github/hooks/log_ai_interaction.py",
+        "cwd": ".",
+        "timeoutSec": 10
+      }
+    ],
+    "PreToolUse": [
+      {
+        "type": "command",
+        "bash": "python3 .github/hooks/log_ai_interaction.py",
+        "powershell": "py -3 .github/hooks/log_ai_interaction.py",
+        "cwd": ".",
+        "timeoutSec": 10
+      }
+    ],
+    "PostToolUse": [
+      {
+        "type": "command",
+        "bash": "python3 .github/hooks/log_ai_interaction.py",
+        "powershell": "py -3 .github/hooks/log_ai_interaction.py",
+        "cwd": ".",
+        "timeoutSec": 10
+      }
+    ],
+    "PostToolUseFailure": [
+      {
+        "type": "command",
+        "bash": "python3 .github/hooks/log_ai_interaction.py",
+        "powershell": "py -3 .github/hooks/log_ai_interaction.py",
+        "cwd": ".",
+        "timeoutSec": 10
+      }
+    ],
+    "SubagentStart": [
+      {
+        "type": "command",
+        "bash": "python3 .github/hooks/log_ai_interaction.py",
+        "powershell": "py -3 .github/hooks/log_ai_interaction.py",
+        "cwd": ".",
+        "timeoutSec": 10
+      }
+    ],
+    "SubagentStop": [
+      {
+        "type": "command",
+        "bash": "python3 .github/hooks/log_ai_interaction.py",
+        "powershell": "py -3 .github/hooks/log_ai_interaction.py",
+        "cwd": ".",
+        "timeoutSec": 10
+      }
+    ],
+    "Stop": [
+      {
+        "type": "command",
+        "bash": "python3 .github/hooks/log_ai_interaction.py",
+        "powershell": "py -3 .github/hooks/log_ai_interaction.py",
+        "cwd": ".",
+        "timeoutSec": 10
+      }
+    ]
+  }
+}

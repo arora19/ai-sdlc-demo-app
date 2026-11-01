@@ -6,14 +6,15 @@ export default defineConfig({
   retries: process.env.CI ? 1 : 0,
   reporter: [['list'], ['html', { open: 'never' }]],
   use: {
-    baseURL: 'http://localhost:5000',
+    baseURL: 'http://localhost:5001',
     trace: 'on-first-retry',
   },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
   webServer: {
-    command: 'dotnet run --project ../backend/src/InvoiceApp.Api',
-    url: 'http://localhost:5000',
-    reuseExistingServer: true,
+    command:
+      'dotnet run --no-launch-profile --project ../backend/src/InvoiceApp.Api -- --urls http://localhost:5001',
+    url: 'http://localhost:5001',
+    reuseExistingServer: false,
     timeout: 120_000,
   },
 });

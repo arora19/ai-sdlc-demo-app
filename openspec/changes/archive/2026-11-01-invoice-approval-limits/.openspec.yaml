@@ -1,0 +1,4 @@
+schema: spec-driven
+created: 2026-10-31
+goal: Produce a reviewable, validated design and incremental implementation plan
+  without changing application code or tests.

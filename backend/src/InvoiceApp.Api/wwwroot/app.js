@@ -40,7 +40,8 @@
   async function refresh() {
     const invoices = await api('/invoices');
     renderInvoices(invoices);
-    renderPending(invoices.filter((i) => i.status === 'PendingApproval'));
+    renderPending(invoices.filter((i) =>
+      i.status === 'PendingApproval' || i.status === 'AwaitingSecondApproval'));
   }
 
   function renderInvoices(invoices) {
@@ -65,17 +66,70 @@
     show('pending-empty', pending.length === 0);
     $('pending-list').replaceChildren(...pending.map((invoice) => {
       const reasonId = `reason-${invoice.id}`;
-      const approve = el('button', { type: 'button', 'aria-label': `Approve invoice ${invoice.id}` }, 'Approve');
-      const reject = el('button', { type: 'button', class: 'danger', 'aria-label': `Reject invoice ${invoice.id}` }, 'Reject');
-      const reason = el('input', { id: reasonId, 'aria-label': `Rejection reason for ${invoice.id}`, placeholder: 'Reason (required to reject)' });
+      const isWaitingForSecond = invoice.status === 'AwaitingSecondApproval';
+      const details = el('span', {},
+        `${invoice.id} · ${invoice.customerName} · ${money.format(invoice.amount)}`);
+      const progress = isWaitingForSecond
+        ? el('span', { class: 'approval-progress' },
+          invoice.firstApprovedBy && invoice.firstApprovedAt
+            ? `First of two approvals complete. First approver: ${invoice.firstApprovedBy} (${new Date(invoice.firstApprovedAt).toLocaleString()}). Awaiting a different Director.`
+            : 'The first approval record is incomplete.')
+        : el('span', { class: 'approval-progress' }, 'Awaiting first approval.');
+      const actions = el('span', { class: 'approval-actions' });
 
-      approve.addEventListener('click', () => decide(`/approvals/${invoice.id}/approve`, {}));
-      reject.addEventListener('click', () => decide(`/approvals/${invoice.id}/reject`, { reason: reason.value }));
+      if (isWaitingForSecond) {
+        const hasFirstApproval = invoice.firstApprovedBy && invoice.firstApprovedAt;
+        const isDifferentDirector =
+          session.role === 'Admin' &&
+          hasFirstApproval &&
+          invoice.firstApprovedBy.toLowerCase() !== session.username.toLowerCase();
+        if (isDifferentDirector) {
+          const approve = el('button', {
+            type: 'button',
+            'aria-label': `Record second approval for invoice ${invoice.id}`
+          }, 'Record second approval');
+          approve.addEventListener('click', () => decide(`/approvals/${invoice.id}/approve`, {}));
+          actions.append(approve);
+        } else {
+          actions.append(el('span', {},
+            !hasFirstApproval
+              ? 'A first approval must be recorded before a second approval.'
+              : session.role === 'Admin'
+              ? 'Another Director must provide the second approval.'
+              : 'A Director must provide the second approval.'));
+        }
+      } else {
+        const isDirector = session.role === 'Admin';
+        const isManager = session.role === 'Approver';
+        const managerCanApprove = invoice.amount <= 50_000 || invoice.amount > 500_000;
+        if (isDirector || (isManager && managerCanApprove)) {
+          const approve = el('button', {
+            type: 'button',
+            'aria-label': invoice.amount > 500_000
+              ? `Record first approval for invoice ${invoice.id}`
+              : `Approve invoice ${invoice.id}`
+          }, invoice.amount > 500_000 ? 'Record first approval' : 'Approve');
+          approve.addEventListener('click', () => decide(`/approvals/${invoice.id}/approve`, {}));
+          actions.append(approve);
+        } else {
+          actions.append(el('span', {}, 'Only a Director may approve this amount.'));
+        }
 
-      return el('li', {},
-        el('span', {}, `${invoice.id} · ${invoice.customerName} · ${money.format(invoice.amount)}`),
-        el('span', {}, approve),
-        el('div', { class: 'reject-row' }, reason, reject));
+        const reject = el('button', {
+          type: 'button',
+          class: 'danger',
+          'aria-label': `Reject invoice ${invoice.id}`
+        }, 'Reject');
+        const reason = el('input', {
+          id: reasonId,
+          'aria-label': `Rejection reason for ${invoice.id}`,
+          placeholder: 'Reason (required to reject)'
+        });
+        reject.addEventListener('click', () => decide(`/approvals/${invoice.id}/reject`, { reason: reason.value }));
+        return el('li', {}, details, actions, progress, el('div', { class: 'reject-row' }, reason, reject));
+      }
+
+      return el('li', {}, details, actions, progress);
     }));
   }
 

@@ -27,10 +27,35 @@ Invoice approval demo app: ASP.NET Core 8 Web API with a small static web UI.
 - Run the tests: `dotnet test backend/InvoiceApp.sln`
 - Run end-to-end tests: `cd e2e && npm install && npx playwright install chromium && npm test`
 
+## Implemented approval policy
+
+These are the owner-approved rules implemented by `ApprovalService`; keep business rules there and add tests for any proposed policy changes.
+
+- A Manager's approval limit is 50,000.
+- A Director's approval limit is 500,000.
+- `Approver` maps to Manager and `Admin` maps to Director for invoice approval only.
+- The limits are inclusive. Either role may provide the first approval above 500,000; a different Director must provide the second approval.
+- Rejection records its outcome and decision metadata without changing submitted invoice data, including the amount and customer details.
+
+### Approved policy decisions
+
+- Either role may provide the first approval above 500,000; the second approver must be a different Director.
+- `Approver` maps to Manager and `Admin` maps to Director for invoice approval only; this does not change other authorization.
+- Both limits are inclusive, and Directors may also approve amounts within the Manager limit.
+
+## Human review expectations
+
+- Have a human review proposed changes to approval rules, authorization, or persisted invoice decisions before treating those changes as accepted.
+- Run the relevant tests and review the resulting diff. Review `logs/ai-interactions.jsonl` for sensitive content before sharing it.
+- Preserve the existing repository-local logging hooks and logger under `.github/hooks/` unless a human explicitly requests changes to them.
+
 ## Demo accounts (not real credentials)
 
 - `demo.approver` / `ChangeMe123!` (role Approver)
 - `demo.admin` / `ChangeMe123!` (role Admin)
+- `demo.director` / `ChangeMe123!` (role Admin; second distinct Director demo identity)
+
+These are non-sensitive example credentials for the local demo only. Never use them for a deployed or shared environment.
 
 ## Never
 
