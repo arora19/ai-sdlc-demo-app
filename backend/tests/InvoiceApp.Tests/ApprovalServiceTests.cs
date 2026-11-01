@@ -23,6 +23,8 @@ public class ApprovalServiceTests
 
     private static ApprovalService ServiceFor(FakeInvoiceRepository repository) => new(repository);
 
+    private static ApprovalService ServiceFor(IInvoiceRepository repository) => new(repository);
+
     private static InvoiceSnapshot Snapshot(Invoice invoice) =>
         new(
             invoice.Id,
@@ -35,6 +37,47 @@ public class ApprovalServiceTests
             invoice.DecidedBy,
             invoice.DecidedAt,
             invoice.DecisionNote);
+
+    private sealed class NonAtomicCopyingInvoiceRepository : IInvoiceRepository
+    {
+        private readonly FakeInvoiceRepository _repository;
+
+        public NonAtomicCopyingInvoiceRepository(params Invoice[] invoices) =>
+            _repository = new FakeInvoiceRepository(invoices);
+
+        public IReadOnlyList<Invoice> GetAll() =>
+            _repository.GetAll().Select(Copy).ToList();
+
+        public Invoice? GetById(string id)
+        {
+            var invoice = _repository.GetById(id);
+            return invoice is null ? null : Copy(invoice);
+        }
+
+        public IReadOnlyList<Invoice> GetByIds(IEnumerable<string> ids) =>
+            _repository.GetByIds(ids).Select(Copy).ToList();
+
+        public Invoice Add(Invoice invoice) => _repository.Add(Copy(invoice));
+
+        public void Update(Invoice invoice) => _repository.Update(Copy(invoice));
+
+        public bool Remove(string id) => _repository.Remove(id);
+
+        private static Invoice Copy(Invoice invoice) =>
+            new()
+            {
+                Id = invoice.Id,
+                CustomerName = invoice.CustomerName,
+                Amount = invoice.Amount,
+                Status = invoice.Status,
+                CreatedAt = invoice.CreatedAt,
+                FirstApprovedBy = invoice.FirstApprovedBy,
+                FirstApprovedAt = invoice.FirstApprovedAt,
+                DecidedBy = invoice.DecidedBy,
+                DecidedAt = invoice.DecidedAt,
+                DecisionNote = invoice.DecisionNote
+            };
+    }
 
     private static Invoice Persisted(FakeInvoiceRepository repository, string invoiceId) =>
         repository.GetById(invoiceId) ?? throw new InvalidOperationException("Expected invoice to be persisted.");
@@ -78,6 +121,25 @@ public class ApprovalServiceTests
     }
 
     [Fact]
+    public void Submit_UsesNonAtomicRepositoryFallbackToPersistPendingState()
+    {
+        var repository = new NonAtomicCopyingInvoiceRepository(InvoiceWith("INV-1", InvoiceStatus.Draft));
+
+        var result = ServiceFor(repository).Submit("INV-1");
+
+        Assert.Equal(InvoiceStatus.PendingApproval, result.Status);
+        Assert.Equal(InvoiceStatus.PendingApproval, repository.GetById("INV-1")?.Status);
+    }
+
+    [Fact]
+    public void Submit_ThrowsWhenInvoiceDoesNotExist()
+    {
+        var repository = new NonAtomicCopyingInvoiceRepository();
+
+        Assert.Throws<KeyNotFoundException>(() => ServiceFor(repository).Submit("INV-404"));
+    }
+
+    [Fact]
     public void Approve_SetsStatusApproverAndTimestamp()
     {
         var repository = new FakeInvoiceRepository(InvoiceWith("INV-1", InvoiceStatus.PendingApproval));
@@ -109,6 +171,36 @@ public class ApprovalServiceTests
 
         Assert.Throws<KeyNotFoundException>(() =>
             service.Approve("INV-404", "demo.approver", ApprovalAuthority.Manager));
+    }
+
+    [Fact]
+    public void Approve_UsesNonAtomicRepositoryFallbackToPersistApproval()
+    {
+        var invoice = InvoiceWith("INV-1", InvoiceStatus.PendingApproval);
+        invoice.Amount = 50_000m;
+        var repository = new NonAtomicCopyingInvoiceRepository(invoice);
+
+        var result = ServiceFor(repository).Approve("INV-1", "reviewer-1", ApprovalAuthority.Manager);
+        var persisted = repository.GetById("INV-1");
+
+        Assert.Equal(InvoiceStatus.Approved, result.Status);
+        Assert.Equal(InvoiceStatus.Approved, persisted?.Status);
+        Assert.Equal("reviewer-1", persisted?.DecidedBy);
+        Assert.NotNull(persisted?.DecidedAt);
+    }
+
+    [Fact]
+    public void Approve_UnknownAuthority_DeniesHighValueFirstApprovalWithoutChangingAnyInvoiceField()
+    {
+        var invoice = InvoiceWith("INV-1", InvoiceStatus.PendingApproval);
+        invoice.Amount = 500_001m;
+        var repository = new FakeInvoiceRepository(invoice);
+        var before = Snapshot(Persisted(repository, "INV-1"));
+
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            ServiceFor(repository).Approve("INV-1", "reviewer-1", (ApprovalAuthority)99));
+
+        Assert.Equal(before, Snapshot(Persisted(repository, "INV-1")));
     }
 
     [Fact]
@@ -171,6 +263,32 @@ public class ApprovalServiceTests
         Assert.Equal("reviewer-1", result.DecidedBy);
         Assert.NotNull(result.DecidedAt);
         Assert.Equal(Snapshot(result), Snapshot(Persisted(repository, "INV-1")));
+    }
+
+    [Fact]
+    public void Approve_SecondApprovalAt500000_DeniesWithoutChangingAnyInvoiceField()
+    {
+        var invoice = new Invoice
+        {
+            Id = "INV-1",
+            CustomerName = "Submitted Customer",
+            Amount = 500_000m,
+            Status = InvoiceStatus.AwaitingSecondApproval,
+            CreatedAt = new DateTime(2020, 10, 30, 8, 15, 0, DateTimeKind.Utc),
+            FirstApprovedBy = "first-reviewer",
+            FirstApprovedAt = new DateTime(2020, 10, 30, 9, 15, 0, DateTimeKind.Utc),
+            DecidedBy = "prior.decision",
+            DecidedAt = new DateTime(2020, 10, 30, 10, 15, 0, DateTimeKind.Utc),
+            DecisionNote = "prior note"
+        };
+        var repository = new FakeInvoiceRepository(invoice);
+        var before = Snapshot(Persisted(repository, "INV-1"));
+
+        var exception = Assert.Throws<InvalidOperationException>(() =>
+            ServiceFor(repository).Approve("INV-1", "director-second", ApprovalAuthority.Director));
+
+        Assert.Contains("does not exceed 500,000", exception.Message);
+        Assert.Equal(before, Snapshot(Persisted(repository, "INV-1")));
     }
 
     [Theory]
@@ -378,6 +496,30 @@ public class ApprovalServiceTests
 
         Assert.Throws<ArgumentException>(() =>
             ServiceFor(repository).Reject("INV-1", "demo.approver", "  "));
+
+        Assert.Equal(before, Snapshot(Persisted(repository, "INV-1")));
+    }
+
+    [Theory]
+    [InlineData(InvoiceStatus.Draft)]
+    [InlineData(InvoiceStatus.AwaitingSecondApproval)]
+    [InlineData(InvoiceStatus.Approved)]
+    [InlineData(InvoiceStatus.Rejected)]
+    public void Reject_NonPendingInvoice_DeniesWithoutChangingAnyInvoiceField(InvoiceStatus status)
+    {
+        var invoice = InvoiceWithDecisionHistory("INV-1", 72_500m);
+        invoice.Status = status;
+        if (status == InvoiceStatus.AwaitingSecondApproval)
+        {
+            invoice.FirstApprovedBy = "first-reviewer";
+            invoice.FirstApprovedAt = new DateTime(2020, 10, 30, 9, 15, 0, DateTimeKind.Utc);
+        }
+
+        var repository = new FakeInvoiceRepository(invoice);
+        var before = Snapshot(Persisted(repository, "INV-1"));
+
+        Assert.Throws<InvalidOperationException>(() =>
+            ServiceFor(repository).Reject("INV-1", "demo.approver", "Duplicate invoice"));
 
         Assert.Equal(before, Snapshot(Persisted(repository, "INV-1")));
     }

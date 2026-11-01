@@ -3,7 +3,7 @@
 ## 1. Policy baseline and mutation testing before improvements
 
 - [x] 1.1 Verify the implementation plan matches the owner-approved policy in `design.md` and `specs/invoice-approval-limits/spec.md`; verify no task remains blocked on a human decision.
-- [ ] 1.2 Add a pinned, repository-local Stryker.NET test-tool configuration without changing runtime dependencies; verify the tool installs and runs against the existing backend tests.
+- [x] 1.2 Add a pinned, repository-local Stryker.NET test-tool configuration without changing runtime dependencies; verify the tool installs and runs against the existing backend tests.
 - [ ] 1.3 Run the mutation suite before implementation and preserve its report and score as the baseline; verify the existing backend test suite passes unchanged.
 
 ## 2. Single-approver implementation and unit tests
@@ -31,7 +31,7 @@
 ## 5. Mutation testing after improvements
 
 - [ ] 5.1 Run the pinned mutation suite against the completed implementation and unit tests; verify the report is generated and compare killed/surviving mutants with the pre-implementation baseline.
-- [ ] 5.2 Investigate surviving approval-policy/state-integrity mutants and add focused assertions only where behavior is genuinely untested; verify backend tests and mutation results are rerun and unresolved survivors are explained without weakening tests.
+- [x] 5.2 Investigate surviving approval-policy/state-integrity mutants and add focused assertions only where behavior is genuinely untested; verify backend tests and mutation results are rerun and unresolved survivors are explained without weakening tests.
 
 ## 6. AI-assisted PR review
 

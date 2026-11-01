@@ -1,0 +1,104 @@
+Invoice approval limits mutation-testing evidence
+================================================
+
+Initial measurement (before approval-service unit-test improvements)
+--------------------------------------------------------------------
+Tool: Stryker.NET 4.13.0
+Target framework: .NET 8
+Mutation scope: backend/src/InvoiceApp.Domain/ApprovalService.cs
+Backend test suite before mutation testing: 29 passed, 0 failed
+Command:
+  dotnet stryker --project backend/src/InvoiceApp.Domain/InvoiceApp.Domain.csproj --test-project backend/tests/InvoiceApp.Tests/InvoiceApp.Tests.csproj --mutate "**/ApprovalService.cs" --reporter Json --output /tmp/stryker-baseline-json --concurrency 2
+
+Stryker-reported mutation score: 71.67%
+Mutants in ApprovalService.cs: 81 total; 43 killed, 10 survived, 7 had no test coverage, 20 ignored by filters, and 1 caused a compile error. Stryker's score includes the 43 killed, 10 survived, and 7 no-coverage mutants.
+
+Surviving mutants:
+  id 5, line 26: Invalid-submit exception message replaced with an empty interpolated string.
+  id 6, line 30: Repository Update call removed after submission.
+  id 9, line 38: Known-authority validation call removed.
+  id 30, line 60: Second-approval threshold changed from <= 500,000 to < 500,000.
+  id 41, line 85: Director approval-limit description replaced with an empty string.
+  id 58, line 111: Missing-rejection-reason exception message replaced with an empty string.
+  id 60, line 116: Pending-status validation removed from rejection.
+  id 65, line 132: Missing-invoice exception message replaced with an empty interpolated string.
+  id 68, line 145: Missing-invoice throw removed from Find.
+  id 74, line 153: Invalid-lifecycle exception message replaced with an empty interpolated string.
+
+No-coverage mutants:
+  id 33, line 62: Second-approval threshold exception statement.
+  id 34, line 63: Second-approval threshold exception message.
+  id 42, line 86: Invalid-authority switch exception message.
+  id 67, line 139: Repository Update call in the non-atomic transition fallback.
+  id 69, line 146: Missing-invoice exception message in Find.
+  id 79, line 161: Invalid-authority exception statement.
+  id 80, line 161: Invalid-authority exception message.
+
+Compile-error mutant:
+  id 62, line 128: Atomic-repository type check changed to an invalid pattern expression.
+
+The potentially policy-relevant survivors are authority validation (id 9), the
+500,000 second-approval boundary (id 30), and pending-state validation for
+rejection (id 60). The missing-invoice behavior (id 68) and repository update
+fallback (ids 6 and 67) are lifecycle/persistence paths; the remaining survivors
+primarily alter exception text. The baseline report itself was generated under
+/tmp and is not included; this text records its observed result before tests
+were changed.
+
+Final measurement (after focused unit-test improvements)
+--------------------------------------------------------
+Tool: Stryker.NET 4.13.0
+Mutation scope: backend/src/InvoiceApp.Domain/ApprovalService.cs
+Backend test suite: 38 passed, 0 failed
+Command:
+  dotnet stryker --project backend/src/InvoiceApp.Domain/InvoiceApp.Domain.csproj --test-project backend/tests/InvoiceApp.Tests/InvoiceApp.Tests.csproj --mutate "**/ApprovalService.cs" --reporter Json --output /tmp/stryker-final-json --concurrency 2
+
+Stryker-reported mutation score: 86.67%
+Mutants in ApprovalService.cs: 81 total; 52 killed, 7 survived, 1 had no test coverage, 20 ignored by filters, and 1 caused a compile error. Stryker's score includes the 52 killed, 7 survived, and 1 no-coverage mutant.
+
+Comparison: score increased by 15.00 percentage points (71.67% to 86.67%).
+
+Previously surviving mutants now killed:
+  id 6: Removed the repository Update call after submission. The non-atomic,
+        copy-on-read repository test verifies submission is persisted.
+  id 9: Removed known-authority validation. An unknown authority attempting a
+       500,001 first approval now must fail without changing the invoice.
+  id 30: Changed the second-approval amount guard from <= 500,000 to < 500,000.
+        A malformed AwaitingSecondApproval invoice at exactly 500,000 now must
+        be rejected without changing its complete snapshot.
+  id 60: Removed pending-state validation from rejection. A theory verifies
+        rejection is denied without mutation for Draft, AwaitingSecondApproval,
+        Approved, and Rejected invoices.
+  id 68: Removed the missing-invoice exception from Find. A missing Submit
+        target now explicitly verifies the expected KeyNotFoundException.
+
+Previously uncovered mutants now killed:
+  id 33 and id 34: The 500,000 second-approval boundary test executes the
+                   denial branch and verifies the reason and unchanged state.
+  id 67: The non-atomic approval fallback test verifies Update persists the
+         final approval.
+  id 79: The unknown-authority test executes the authority-validation branch.
+
+Final unresolved mutants:
+  id 5, line 26: Invalid-submit exception message removed.
+  id 41, line 85: Director approval-limit description removed; this description
+                  is unreachable for a Director because amounts above 500,000
+                  enter the required first-approval stage.
+  id 58, line 111: Missing-rejection-reason exception message removed.
+  id 65, line 132: Missing-invoice exception message removed on the atomic path.
+  id 69, line 146: Missing-invoice exception message removed on the non-atomic
+                   Find path.
+  id 74, line 153: Invalid-lifecycle exception message removed.
+  id 80, line 161: Invalid-authority exception message removed.
+  No-coverage id 42, line 86: Invalid-authority switch exception message;
+                              the earlier authority validation makes this
+                              branch unreachable.
+  Compile-error id 62, line 128: Mutated atomic-repository pattern check does
+                                 not compile.
+
+The remaining survivors do not bypass the tested amount, authority, lifecycle,
+state-integrity, or persistence rules. They are exception-message mutations,
+the unreachable Director limit description, and a compile-error mutant. The
+single no-coverage mutant is likewise an unreachable fallback switch message.
+Reports were generated under /tmp and are not included; this file preserves the
+observed scores, mutant outcomes, and test changes.
