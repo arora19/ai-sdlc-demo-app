@@ -14,8 +14,10 @@ Open http://localhost:5000 and sign in:
 | --- | --- | --- |
 | `demo.approver` | `ChangeMe123!` | Approver |
 | `demo.admin` | `ChangeMe123!` | Admin |
+| `demo.director` | `ChangeMe123!` | Admin |
 
-These are demo accounts for a local, in-memory app. They are not real credentials.
+These are non-sensitive example credentials for a local, in-memory app. They
+are not real credentials and must not be used in a deployed or shared environment.
 
 ## What it does
 

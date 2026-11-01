@@ -27,27 +27,25 @@ Invoice approval demo app: ASP.NET Core 8 Web API with a small static web UI.
 - Run the tests: `dotnet test backend/InvoiceApp.sln`
 - Run end-to-end tests: `cd e2e && npm install && npx playwright install chromium && npm test`
 
-## Approval policy for future changes
+## Implemented approval policy
 
-These are assignment requirements for future approval work; they are not implemented by the current single-approver flow. Keep business rules in `ApprovalService` and add tests before changing behavior.
+These are the owner-approved rules implemented by `ApprovalService`; keep business rules there and add tests for any proposed policy changes.
 
 - A Manager's approval limit is 50,000.
 - A Director's approval limit is 500,000.
-- An invoice above 500,000 requires two distinct approvers, and the second approval must be by a Director.
-- Rejection must not alter the submitted invoice data (for example, its amount or customer). Record the rejection outcome and its decision metadata without rewriting that data. If “without mutation” is intended to prohibit even outcome/decision metadata writes, get human clarification before implementation.
+- `Approver` maps to Manager and `Admin` maps to Director for invoice approval only.
+- The limits are inclusive. Either role may provide the first approval above 500,000; a different Director must provide the second approval.
+- Rejection records its outcome and decision metadata without changing submitted invoice data, including the amount and customer details.
 
-### Open design decisions — human input required
+### Approved policy decisions
 
-- Who is eligible to make the first approval on an invoice above 500,000? Do not infer this from the Director second-approval requirement.
-- How do the business roles Manager and Director map to the existing `Approver` and `Admin` roles and demo accounts? Do not change authentication, role names, or demo access without an explicit decision.
-- Confirm threshold inclusivity and role eligibility at and below the 50,000 and 500,000 limits before encoding boundary behavior.
-
-Do not silently choose answers to these questions. Ask the human owner and document the decision before implementing or testing policy-dependent behavior.
+- Either role may provide the first approval above 500,000; the second approver must be a different Director.
+- `Approver` maps to Manager and `Admin` maps to Director for invoice approval only; this does not change other authorization.
+- Both limits are inclusive, and Directors may also approve amounts within the Manager limit.
 
 ## Human review expectations
 
-- A human must resolve the open approval-policy and role-mapping decisions before implementation; agents must not make these decisions by assumption.
-- Have a human review changes to approval rules, authorization, or persisted invoice decisions before treating them as accepted.
+- Have a human review proposed changes to approval rules, authorization, or persisted invoice decisions before treating those changes as accepted.
 - Run the relevant tests and review the resulting diff. Review `logs/ai-interactions.jsonl` for sensitive content before sharing it.
 - Preserve the existing repository-local logging hooks and logger under `.github/hooks/` unless a human explicitly requests changes to them.
 
@@ -55,6 +53,9 @@ Do not silently choose answers to these questions. Ask the human owner and docum
 
 - `demo.approver` / `ChangeMe123!` (role Approver)
 - `demo.admin` / `ChangeMe123!` (role Admin)
+- `demo.director` / `ChangeMe123!` (role Admin; second distinct Director demo identity)
+
+These are non-sensitive example credentials for the local demo only. Never use them for a deployed or shared environment.
 
 ## Never
 

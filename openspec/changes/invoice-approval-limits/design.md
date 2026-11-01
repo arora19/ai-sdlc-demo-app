@@ -76,12 +76,18 @@ A separate status is preferred over inferring the stage from a count alone becau
 - **Synchronization is process-local** → Use one process as assumed by the demo; use a transactional/distributed concurrency mechanism before multi-instance deployment.
 - **A new status value can surprise clients** → Preserve existing endpoint behavior, update UI/status filtering, and document the added status.
 - **Race tests can be nondeterministic if they rely on timing** → Coordinate requests with barriers/latches and assert persisted invariants rather than a particular thread ordering.
-- **Mutation tooling is not present in the current test project** → Evaluate Stryker.NET as a local test tool; record baseline and post-change mutation results without weakening tests to improve the score.
+- **The initial mutation measurement was not pre-implementation** → Stryker.NET is now pinned as a local test tool; preserve the initial and 86.67% reports as historical measurements, and report a separate current-head result without treating the scores as like-for-like.
 
 ## Migration Plan
 
+The following sequence records the original implementation plan; it does not
+assert that every milestone or separate-commit boundary was achieved. The
+available baseline was captured after feature implementation and before
+focused ApprovalService test improvements, so it is not a pre-implementation
+measurement.
+
 1. The owner-approved policy is recorded in this design and the capability spec; no unresolved policy gate remains for this scope.
-2. Record a passing test and mutation baseline before implementation.
+2. The original plan called for a passing test and mutation baseline before implementation; preserve the available historical reports with their actual measurement context.
 3. Implement and test the single-approver limits as one independently passing commit; invoices above 500,000 must remain unfinalized in this phase.
 4. Implement and test the second-approval lifecycle, explicit intermediate state, recorded decisions, and synchronized transitions as a separate independently passing commit.
 5. Run Playwright E2E coverage, repeat mutation testing, request AI-assisted review of each implementation diff, then update user-facing documentation.

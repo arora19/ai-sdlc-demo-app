@@ -45,8 +45,8 @@ primarily alter exception text. The baseline report itself was generated under
 /tmp and is not included; this text records its observed result before tests
 were changed.
 
-Final measurement (after focused unit-test improvements)
---------------------------------------------------------
+Historical measurement (after focused unit-test improvements, before the final atomic-transition implementation)
+---------------------------------------------------------------------------------------------------------------
 Tool: Stryker.NET 4.13.0
 Mutation scope: backend/src/InvoiceApp.Domain/ApprovalService.cs
 Backend test suite: 38 passed, 0 failed
@@ -111,4 +111,57 @@ unit-test improvements, not a pre-implementation baseline. The feature
 implementation was already present when that measurement was run. The raw JSON
 reports were available at /tmp/stryker-baseline-json and
 /tmp/stryker-final-json and have been preserved verbatim in
-logs/evidence/mutation-reports; no report contents have been reconstructed.
+logs/evidence/mutation-reports/baseline and
+logs/evidence/mutation-reports/historical-before-atomic-transition. The 86.67%
+measurement predates the final atomic-transition implementation and is not a
+current-head result; no report contents have been reconstructed.
+
+Current-head measurement (2026-11-01)
+------------------------------------
+Tool: Stryker.NET 4.13.0
+Target framework: .NET 8
+Mutation scope: backend/src/InvoiceApp.Domain/ApprovalService.cs
+Backend test suite: 40 passed, 0 failed
+Command:
+  dotnet stryker --project backend/src/InvoiceApp.Domain/InvoiceApp.Domain.csproj --test-project backend/tests/InvoiceApp.Tests/InvoiceApp.Tests.csproj --mutate "**/ApprovalService.cs" --reporter Json --output logs/evidence/mutation-reports/current-head-2026-11-01 --concurrency 2
+
+Stryker-reported mutation score: 88.89%
+ApprovalService mutants: 79 total; 46 killed, 5 survived, 1 had no test
+coverage, 2 timed out, 7 caused compile errors, and 18 were ignored by filters.
+
+Surviving mutants:
+  id 6, line 25: Invalid-submit exception message replaced with an empty
+                 interpolated string.
+  id 41, line 84: Director approval-limit description replaced with an empty
+                  string.
+  id 58, line 110: Missing-rejection-reason exception message replaced with an
+                   empty string.
+  id 72, line 143: Non-atomic-repository NotSupportedException message replaced
+                   with an empty interpolated string.
+  id 78, line 151: Unknown-authority exception message replaced with an empty
+                   string.
+
+Other non-killed outcomes:
+  id 42, line 85: No coverage for the unknown-authority switch exception
+                  message; the earlier authority validation makes it
+                  unreachable.
+  id 0, line 14: Timed out after removal of the constructor block.
+  id 3, line 22: Timed out after mutating the Draft status equality check.
+  Seven additional generated mutants produced compile errors in Stryker's safe
+  mode. These outcomes are preserved as reported rather than reclassified as
+  killed.
+
+Raw report:
+  logs/evidence/mutation-reports/current-head-2026-11-01/reports/mutation-report.json
+  SHA-256: a00e5e7e7947a0dc2a201579e1e59f56ac59006fe5459e82042a3ced29c42311
+
+The current-head score and unresolved outcomes above come from this run only.
+The baseline 71.67% and historical 86.67% results remain separately labeled
+and their raw reports are retained. The current score is numerically 2.22
+percentage points above 86.67%, but the result is not a like-for-like
+comparison because the historical report predates the final atomic-transition
+implementation and used a different test suite. The historical report counted
+7 survivors, 1 no-coverage mutant, 20 ignored mutants, and 1 compile error out
+of 81 ApprovalService mutants; the current report counts 5 survivors, 1
+no-coverage mutant, 18 ignored mutants, 7 compile errors, and 2 timeouts out of
+79 ApprovalService mutants. Mutant IDs are specific to their source versions.

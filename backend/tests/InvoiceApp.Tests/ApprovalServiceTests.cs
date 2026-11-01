@@ -122,7 +122,58 @@ public class ApprovalServiceTests
         }
     }
 
+    private sealed class AtomicTransitionGateInvoiceRepository : IAtomicInvoiceRepository, IDisposable
+    {
+        private readonly InMemoryInvoiceRepository _repository = new();
+        private readonly CountdownEvent _enteredTransitions;
+        private readonly ManualResetEventSlim _releaseTransitions = new(false);
+        private bool _gateEnabled;
+
+        public AtomicTransitionGateInvoiceRepository(int expectedConcurrentTransitions)
+        {
+            _enteredTransitions = new CountdownEvent(expectedConcurrentTransitions);
+        }
+
+        public bool AllTransitionsEntered(TimeSpan timeout) => _enteredTransitions.Wait(timeout);
+
+        public void EnableTransitionGate() => _gateEnabled = true;
+
+        public void ReleaseTransitions() => _releaseTransitions.Set();
+
+        public IReadOnlyList<Invoice> GetAll() => _repository.GetAll();
+        public Invoice? GetById(string id) => _repository.GetById(id);
+        public IReadOnlyList<Invoice> GetByIds(IEnumerable<string> ids) => _repository.GetByIds(ids);
+        public Invoice Add(Invoice invoice) => _repository.Add(invoice);
+        public void Update(Invoice invoice) => _repository.Update(invoice);
+        public bool Remove(string id) => _repository.Remove(id);
+
+        public T ExecuteAtomically<T>(string invoiceId, Func<Invoice?, T> transition)
+        {
+            if (!_gateEnabled)
+            {
+                return _repository.ExecuteAtomically(invoiceId, transition);
+            }
+
+            _enteredTransitions.Signal();
+            if (!_releaseTransitions.Wait(TimeSpan.FromSeconds(10)))
+            {
+                throw new TimeoutException("Concurrent requests were not released at the atomic transition boundary.");
+            }
+
+            return _repository.ExecuteAtomically(invoiceId, transition);
+        }
+
+        public void Dispose()
+        {
+            _enteredTransitions.Dispose();
+            _releaseTransitions.Dispose();
+        }
+    }
+
     private static Invoice Persisted(FakeInvoiceRepository repository, string invoiceId) =>
+        repository.GetById(invoiceId) ?? throw new InvalidOperationException("Expected invoice to be persisted.");
+
+    private static Invoice Persisted(IInvoiceRepository repository, string invoiceId) =>
         repository.GetById(invoiceId) ?? throw new InvalidOperationException("Expected invoice to be persisted.");
 
     private static Invoice Persisted(InMemoryInvoiceRepository repository, string invoiceId) =>
@@ -493,13 +544,14 @@ public class ApprovalServiceTests
         const int requestCount = 8;
         var invoice = InvoiceWith("INV-1", InvoiceStatus.PendingApproval);
         invoice.Amount = 500_001m;
-        var repository = new InMemoryInvoiceRepository();
+        using var repository = new AtomicTransitionGateInvoiceRepository(requestCount);
         repository.Add(invoice);
         var service = new ApprovalService(repository);
         service.Approve("INV-1", "first-reviewer", ApprovalAuthority.Manager);
         var before = Snapshot(Persisted(repository, "INV-1"));
+        repository.EnableTransitionGate();
 
-        var outcomes = await RunConcurrently(requestCount, _ =>
+        var outcomes = await RunConcurrentTransitions(repository, requestCount, _ =>
             service.Approve("INV-1", "first-reviewer", ApprovalAuthority.Director));
 
         Assert.All(outcomes, outcome => Assert.IsType<InvalidOperationException>(outcome));
@@ -512,14 +564,15 @@ public class ApprovalServiceTests
         const int requestCount = 8;
         var invoice = InvoiceWith("INV-1", InvoiceStatus.PendingApproval);
         invoice.Amount = 500_001m;
-        var repository = new InMemoryInvoiceRepository();
+        using var repository = new AtomicTransitionGateInvoiceRepository(requestCount);
         repository.Add(invoice);
         var service = new ApprovalService(repository);
         service.Approve("INV-1", "manager-first", ApprovalAuthority.Manager);
         var before = Snapshot(Persisted(repository, "INV-1"));
         var actors = Enumerable.Range(1, requestCount).Select(index => $"director-{index}").ToArray();
+        repository.EnableTransitionGate();
 
-        var outcomes = await RunConcurrently(requestCount, index =>
+        var outcomes = await RunConcurrentTransitions(repository, requestCount, index =>
             service.Approve("INV-1", actors[index], ApprovalAuthority.Director));
 
         Assert.Single(outcomes, outcome => outcome is null);
@@ -534,6 +587,14 @@ public class ApprovalServiceTests
         Assert.NotNull(after.DecidedAt);
         Assert.NotNull(after.FirstApprovedAt);
         Assert.True(after.DecidedAt >= after.FirstApprovedAt);
+        Assert.Equal(
+            before with
+            {
+                Status = InvoiceStatus.Approved,
+                DecidedBy = after.DecidedBy,
+                DecidedAt = after.DecidedAt
+            },
+            after);
     }
 
     [Fact]
@@ -603,15 +664,14 @@ public class ApprovalServiceTests
         Assert.Equal(before, Snapshot(Persisted(repository, "INV-1")));
     }
 
-    private static async Task<Exception?[]> RunConcurrently(int requestCount, Action<int> request)
+    private static async Task<Exception?[]> RunConcurrentTransitions(
+        AtomicTransitionGateInvoiceRepository repository,
+        int requestCount,
+        Action<int> request)
     {
-        using var ready = new CountdownEvent(requestCount);
-        using var start = new ManualResetEventSlim(false);
         var tasks = Enumerable.Range(0, requestCount)
-            .Select(index => Task.Run(() =>
+            .Select(index => Task.Factory.StartNew(() =>
             {
-                ready.Signal();
-                start.Wait();
                 try
                 {
                     request(index);
@@ -621,18 +681,23 @@ public class ApprovalServiceTests
                 {
                     return exception;
                 }
-            }))
+            }, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default))
             .ToArray();
 
+        var allTransitionsEntered = false;
         try
         {
-            Assert.True(ready.Wait(TimeSpan.FromSeconds(10)), "Concurrent requests did not reach the start gate.");
+            allTransitionsEntered = repository.AllTransitionsEntered(TimeSpan.FromSeconds(10));
         }
         finally
         {
-            start.Set();
+            repository.ReleaseTransitions();
         }
 
-        return await Task.WhenAll(tasks);
+        var outcomes = await Task.WhenAll(tasks).WaitAsync(TimeSpan.FromSeconds(15));
+        Assert.True(
+            allTransitionsEntered,
+            "Not all competing requests reached the repository atomic transition before release.");
+        return outcomes;
     }
 }

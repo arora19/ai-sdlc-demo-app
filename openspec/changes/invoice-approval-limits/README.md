@@ -1,3 +1,5 @@
 # invoice-approval-limits
 
-Define manager/director invoice approval limits and dual approval requirements before implementation.
+Tracks the owner-approved Manager/Director approval limits and distinct
+second-approval policy. The approved behavior is implemented; remaining
+validation and documentation work is tracked in [tasks.md](./tasks.md).

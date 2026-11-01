@@ -76,6 +76,35 @@ public class ApprovalsControllerTests
         Assert.Equal(username, repository.GetById(invoice.Id)?.FirstApprovedBy);
     }
 
+    [Fact]
+    public void Approve_DistinctDirectorDemoAccounts_CompleteHighValueApproval()
+    {
+        var invoice = PendingInvoice(500_001m);
+        var repository = new FakeInvoiceRepository(invoice);
+        var firstDirector = ControllerFor(repository, new UserSession("demo.admin", "Admin"));
+
+        var firstResult = firstDirector.Approve(invoice.Id);
+
+        var awaiting = Assert.IsType<Invoice>(Assert.IsType<OkObjectResult>(firstResult.Result).Value);
+        Assert.Equal(InvoiceStatus.AwaitingSecondApproval, awaiting.Status);
+        Assert.Equal("demo.admin", awaiting.FirstApprovedBy);
+
+        var secondDirector = ControllerFor(repository, new UserSession("demo.director", "Admin"));
+        var secondResult = secondDirector.Approve(invoice.Id);
+
+        var approved = Assert.IsType<Invoice>(Assert.IsType<OkObjectResult>(secondResult.Result).Value);
+        Assert.Equal(InvoiceStatus.Approved, approved.Status);
+        Assert.Equal("demo.admin", approved.FirstApprovedBy);
+        Assert.Equal("demo.director", approved.DecidedBy);
+
+        var persisted = repository.GetById(invoice.Id)!;
+        Assert.Equal(InvoiceStatus.Approved, persisted.Status);
+        Assert.Equal("demo.admin", persisted.FirstApprovedBy);
+        Assert.Equal("demo.director", persisted.DecidedBy);
+        Assert.NotNull(persisted.FirstApprovedAt);
+        Assert.NotNull(persisted.DecidedAt);
+    }
+
     private static ApprovalsController ControllerFor(FakeInvoiceRepository repository, UserSession session)
     {
         var controller = new ApprovalsController(new ApprovalService(repository));
