@@ -6,8 +6,12 @@ The exact independent-review artifact or review comments were not present in
 the workspace, and there is no active pull request associated with this
 checkout. The findings below preserve the descriptions and disposition details
 available in the task request; they are summaries, not fabricated verbatim
-quotations. Findings N-01 through N-03 and F-04 are proposed pending human
-verification.
+quotations. At the time this findings record was prepared, the findings and
+proposed dispositions below were pending human verification. The owner
+subsequently posted final human acceptance decisions in a comment on
+[GitHub PR #1](https://github.com/arora19/ai-sdlc-demo-app/pull/1#issuecomment-6553759909).
+No formal GitHub approval review was submitted; acceptance was recorded in the
+PR comment.
 
 ## Findings and proposed verdicts
 
@@ -73,7 +77,7 @@ atomic-transition implementation and does not measure the current
 historical. Stryker.NET 4.13.0 was rerun on the current source, reporting
 88.89%; raw output is preserved separately.
 
-**Evidence:** [mutation-testing-evidence.txt](../../openspec/changes/invoice-approval-limits/mutation-testing-evidence.txt);
+**Evidence:** [mutation-testing-evidence.txt](../../openspec/changes/archive/2026-11-01-invoice-approval-limits/mutation-testing-evidence.txt);
 [baseline raw report](./mutation-reports/baseline/reports/mutation-report.json)
 (SHA-256 `124660990c1475771ad0f5baf45700a630af9a6b292e69693b4688a4d492f2a3`);
 [historical 86.67% raw report](./mutation-reports/historical-before-atomic-transition/reports/mutation-report.json)
@@ -92,7 +96,7 @@ inclusive limits, first and second approval rules, intermediate state, and
 restart/multi-instance limitations.
 
 **Evidence:** [README.md](../../README.md), cross-checked against the approved
-[OpenSpec behavior](../../openspec/changes/invoice-approval-limits/specs/invoice-approval-limits/spec.md).
+[main OpenSpec specification](../../openspec/specs/invoice-approval-limits/spec.md).
 
 ### N-01 — Default demo cannot complete Director-first approval
 
@@ -123,8 +127,8 @@ tasks are not complete.
 
 **Evidence:** [AGENTS.md](../../AGENTS.md),
 [invoice-approval-rules skill](../../.github/skills/invoice-approval-rules/SKILL.md),
-[proposal.md](../../openspec/changes/invoice-approval-limits/proposal.md),
-[change README](../../openspec/changes/invoice-approval-limits/README.md).
+[archived proposal](../../openspec/changes/archive/2026-11-01-invoice-approval-limits/proposal.md),
+[archived change README](../../openspec/changes/archive/2026-11-01-invoice-approval-limits/README.md).
 
 ### N-03 — Concurrency tests did not coordinate at the atomic boundary
 
@@ -139,10 +143,10 @@ persisted invoice snapshot/final state.
 
 **Evidence:** [ApprovalServiceTests.cs](../../backend/tests/InvoiceApp.Tests/ApprovalServiceTests.cs).
 
-## Verification
+## Original verification snapshot
 
 - `dotnet test backend/InvoiceApp.sln` — passed, 40 tests.
-- `cd e2e && npm test` — passed, 1 Playwright test (rerun after implementation).
+- `cd e2e && npm test` — passed, 1 Playwright test at the time of the original review; this is a historical snapshot, not the final E2E result.
 - Stryker.NET 4.13.0 on current `ApprovalService.cs` — 88.89%; 46 killed,
   5 survived, 1 no coverage, 2 timed out, 7 compile errors, 18 ignored.
 - `openspec validate invoice-approval-limits --strict` — valid.
@@ -151,14 +155,15 @@ persisted invoice snapshot/final state.
 
 ## Subsequent E2E update — 2026-11-01
 
-The F-03 `Deferred` disposition above records the state of the review; it is
-preserved and is not rewritten as a different PR verdict. The deferred
-page-object Playwright coverage was subsequently added for the inclusive
+F-03's broader E2E coverage was originally deferred, as recorded in its
+proposed disposition above. That historical finding is preserved; the
+deferred page-object Playwright coverage was subsequently implemented for the inclusive
 Manager and Director limits, Manager denial, both first-approver paths above
 500,000, hidden same-user and Manager second-approval denials, distinct
 Director completion, and non-actionable completed invoices.
 
-Verification after this follow-up:
+The original one-test result above is a historical snapshot. Final verification
+after this follow-up:
 
 - `cd e2e && npm test` — passed, 5 tests.
 - `dotnet test backend/InvoiceApp.sln` — passed, 40 tests.
@@ -166,4 +171,6 @@ Verification after this follow-up:
 - `git diff --check` — passed.
 
 This follow-up does not claim that a pre-implementation mutation baseline
-exists, change the existing PR review dispositions, or create a commit.
+exists or change the original review findings. The five-test result reflects
+the subsequent E2E implementation; the owner's later PR comment records final
+human acceptance. No formal GitHub approval review was submitted.

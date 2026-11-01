@@ -45,6 +45,21 @@ reason while preserving the submitted customer details and amount.
 Invoices and approval decisions are stored in memory only. They are lost when
 the application restarts and are not shared across multiple app instances.
 
+## Two-stage approval demo
+
+1. Sign in as `demo.admin`, create an invoice for more than 500,000, and submit
+   it for approval.
+2. Open **Approvals** and record the first approval. The invoice should move
+   to `AwaitingSecondApproval`, shown as **Awaiting Second Approval** in the
+   invoice list.
+3. Sign out, then sign in as the different Director account `demo.director`.
+   Open **Approvals** and record the second approval.
+4. Open **Invoices** and confirm the invoice status is **Approved**.
+
+The two accounts have Director authority, but the second approval must come
+from a different user than the first. The app stores invoices in memory, so
+restarting it clears the demo data and approval history.
+
 ## Tests
 
 ```

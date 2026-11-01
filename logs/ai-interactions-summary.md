@@ -2,57 +2,77 @@
 
 ## Scope and method
 
-This summary describes the raw repository-local event log as it existed at the export snapshot. The raw `logs/ai-interactions.jsonl` was not rewritten or deleted. The configured lifecycle hooks can append normal audit-session events while tools are used; the submission JSONL is a point-in-time sanitized copy, not a live mirror.
+This point-in-time sanitized export was regenerated from every valid object in the current Git-ignored `logs/ai-interactions.jsonl`; it replaces, rather than appends to, the prior submission JSONL. Source line order is retained. The audit did not directly edit or truncate the raw log. Configured lifecycle hooks may append their normal events while tools run. No application code, tests, OpenSpec artifacts, README, assignment source, hooks, or raw-log content were intentionally changed.
 
-The workspace attachment metadata listed 3,565 raw-log lines initially; the export snapshot contains 3,606 records. The configured hooks can append records as inspection tools run. This audit did not directly write to or truncate the raw log.
+The transformation recursively omits environment-variable subtrees; replaces values under credential/authentication and personal-contact keys; fully redacts prompt, initial-prompt, assistant-response, error, and unstructured tool-result text; and pattern-redacts paths, local/demo account identifiers, emails, phone-like values, credential assignments, bearer/basic/auth headers, provider/JWT/API tokens, and private-key blocks. Structured event metadata, tool names, agent/skill labels, session IDs, outcomes, result-status fields, and original timestamp values are retained where present. No missing metadata is synthesized.
 
-The configured verifier was run against a temporary log and passed. Exported JSONL was parsed line-by-line after redaction, and the post-export sensitive-pattern scan found no matches for the patterns listed below. No application code, tests, hooks, or assignment source artifacts were changed.
+## Record validation and coverage
 
-## Captured sessions and events
-
-- Export snapshot: **3,606 records**, all valid JSON objects; **50 distinct session identifiers** were present and retained in the sanitized JSONL.
-- Event timestamps span **2026-10-31T08:00:10.280000+00:00** through **2026-11-01T05:16:20.248000+00:00** (UTC). 3577 event timestamps are ISO strings and 29 are numeric epoch-millisecond values; timestamp formats are mixed.
+- **4,347 records** exported from **4,347 raw JSON objects**; malformed JSONL lines: **0**; non-object records: **0**.
+- **57 distinct session IDs** retained; records missing session IDs: **0**.
+- Timestamps parsed successfully for all records: **4,347**; formats: **int=30, str=4,317**; missing/invalid: **0/0**.
+- UTC timestamp range: **2026-10-31T08:00:10.280000+00:00** through **2026-11-01T16:02:12.375000+00:00**.
+- **30** records lack `event_type`; event names cannot be safely inferred.
 
 | Event type | Records |
 |---|---:|
-| (missing event_type) | 29 |
-| PostToolUse | 1,680 |
-| PostToolUseFailure | 28 |
-| PreToolUse | 1,709 |
-| SessionEnd | 18 |
-| SessionStart | 13 |
-| Stop | 48 |
-| SubagentStop | 31 |
-| UserPromptSubmit | 50 |
+| PostToolUse | 2,029 |
+| PostToolUseFailure | 32 |
+| PreToolUse | 2,063 |
+| SessionEnd | 26 |
+| SessionStart | 19 |
+| Stop | 57 |
+| SubagentStop | 32 |
+| UserPromptSubmit | 59 |
+| (missing event_type) | 30 |
 
-The missing `event_type` records still contain other metadata, but cannot be reliably classified from the event name. Tool results include **1,678 success** and **28 failure** outcomes; pre-tool records do not themselves establish an outcome.
+**Tools:** 26 distinct names; most frequent event-record names: `Read` (2,270), `Bash` (748), `Grep` (404), `Edit` (224), `Glob` (192), `skill` (74), `Agent` (62), `github-mcp-server-pull_request_read` (46), `tool_search_tool` (24), `read_agent` (12), `WebFetch` (8), `write_agent` (8). Counts include lifecycle-stage rows, not distinct calls.
 
-## What the log supports
+**Tool outcomes:** 2,029 successes and 32 failures are explicit, matching `PostToolUse` and `PostToolUseFailure`. Pre-tool records do not establish outcomes.
 
-- **Prompts:** 50 prompt records and 13 initial-prompt records are present. Prompt text is useful evidence of requests but is not a guaranteed complete transcript.
-- **Tools and outcomes:** tool metadata appears in 3,417 records. Captured tool names include `Read` (1,966), `Bash` (525), `Grep` (372), `Edit` (196), `Glob` (172), `skill` (60), `Agent` (60), `read_agent` (12), `tool_search_tool` (8), `WebFetch` (8). Post-tool results and error fields exist where emitted; outcomes are explicitly recorded for 1,708 records.
-- **Agents/subagents:** agent metadata appears in 1,810 records. Observed agent types include `explore`, `implementation-agent`, `review-agent`, `test-agent`; agent/tool invocation metadata also demonstrates the custom agents `implementation-agent`, `test-agent`, and `review-agent` (and the `explore` agent type). There are 31 `SubagentStop` records and 0 `SubagentStart` records. These records do not establish complete subagent start-to-finish traces or exact run counts.
-- **Skills:** skill-tool records demonstrably name `agent-customization`, `implementation-agent`, `invoice-approval-rules`, `openspec-apply-change`, `openspec-update-change`, `test-quality`. Recorded workflow-related skills include `invoice-approval-rules`, `test-quality`, `openspec-apply-change`, `openspec-update-change`, and `agent-customization`. Event rows can represent tool lifecycle stages, so counts of matching rows should not be read as distinct invocations.
-- **Model:** no model metadata is present in any of the 3,606 records. The model used cannot be verified from this log.
-- **Human oversight:** user prompt events and two `AskUserQuestion` tool records appear. This supports that human interaction was part of the workflow, but the log does not provide a complete, structured record of human approvals/decisions; one ask-user result is absent. The final human acceptance decisions for findings F-01 through F-05 and N-01 through N-03 were posted as a comment on [GitHub PR #1](https://github.com/arora19/ai-sdlc-demo-app/pull/1); those decisions are not captured in the JSONL log.
+**Agents:** types `explore` (52 event records), `implementation-agent` (530 event records), `research` (68 event records), `review-agent` (750 event records), `test-agent` (478 event records); names `explore` (2), `implementation-agent` (14), `research` (2), `review-agent` (26), `test-agent` (18). `SubagentStart`: 0; `SubagentStop`: 32. Traces are incomplete and do not establish distinct completed run counts.
 
-## Workflow and review/remediation evidence
+**Skills:** `agent-customization` (2 rows), `form-github-search-query` (2 rows), `implementation-agent` (2 rows), `invoice-approval-rules` (26 rows), `openspec-apply-change` (8 rows), `openspec-archive-change` (2 rows), `openspec-sync-specs` (2 rows), `openspec-update-change` (2 rows), `show-github-search-result` (2 rows), `summarize-github-issue-pr-notification` (2 rows), `test-quality` (24 rows). Skill rows may represent lifecycle stages rather than unique invocations.
 
-The recorded workflow and current assignment artifacts show AI-assisted work on the invoice-approval-limits change: policy clarification, implementation, focused test work, independent/review-agent passes, test execution, and iterative remediation. Observed agent types and skills are listed above; the log is evidence of selected events, not a full transcript.
+**Prompts and model:** 59 prompt fields and 19 initial-prompt fields were captured, but their text is redacted and the event stream is not a complete conversation history. Model metadata appears in **0 records**; no model claim can be verified from this log.
 
-The assignment review artifact `logs/evidence/pr-review-findings.md` records findings F-01 through F-05 and N-01 through N-03 with **AI-proposed dispositions**, evidence references, and a pending-human-verification caveat. It is not the record of final human decisions. The final human acceptance decisions for these findings are in the comment on [GitHub PR #1](https://github.com/arora19/ai-sdlc-demo-app/pull/1). The artifact's notes describe remediation around atomic state transitions, removal of a non-atomic fallback, deterministic concurrency tests, demo Director identity, and documentation. Its statement that no active PR or exact independent-review artifact was present reflects the artifact's original context; it does not supersede the subsequent PR comment or establish that its proposed verdicts were independently verified.
+## AI-assisted work: captured events versus documentary evidence
 
-The OpenSpec task list records many implementation/test tasks complete, but retains unchecked work for phase-isolated commits, broader E2E coverage, requested AI-assisted PR review, and final archive/documentation verification. The evidence document reports 40 passing backend tests, one passing Playwright test, and 88.89% current-head mutation score; these are quoted assignment evidence, not tests rerun for this logging audit. The hook verifier was rerun for this audit.
+The raw stream contains prompt/tool lifecycle activity and metadata associated with expanded Playwright/E2E work, OpenSpec workflows (including the `openspec-archive-change` skill), final assignment documentation, review-agent activity, implementation/test agents, and remediation. Prompt and unstructured tool-result text is redacted in the export, so the JSONL preserves chronology and event/tool/agent/skill evidence, not the underlying instructions, review text, test output, or complete transcript.
 
-## Redactions and remaining limitations
+Repository artifacts add detail that event logging alone cannot establish:
 
-The export retains event structure, identifiers, and original timestamp values. It redacts sensitive-key values, local filesystem paths, email addresses, phone-like formatted values, bearer/provider/JWT-style tokens, credential assignments, private-key blocks, the local username, demo account identifiers, and the known demo password. In this snapshot the export redacted 4,864 private-path occurrences, 21 email occurrences, 15 local-username occurrences, 778 demo-account identifier occurrences, and 225 demo-password occurrences; the other listed classes had no matches. Environment-variable fields are omitted. These are conservative pattern-based redactions; they cannot prove that every possible personal or confidential value has been identified.
+- **Expanded E2E testing:** the archived OpenSpec task list marks the Playwright tasks complete; the E2E source contains five scenarios, and the later section of `logs/evidence/pr-review-findings.md` records five passing tests. That findings document preserves F-03's earlier deferred disposition as historical, then documents the subsequent E2E follow-up. `ASSIGNMENT.md` records this chronology. These are repository-documented claims, not tests rerun for this logging audit.
+- **OpenSpec archival and final assignment documentation:** the archived change includes all 22 tasks marked complete; `ASSIGNMENT.md` records the archive, workflow, and final verification. The local log has event/skill evidence but not a full transcript. Per scope, `ASSIGNMENT.md` was not edited; its older logging snapshot still says 3,606 records/50 sessions and is stale relative to this refreshed export.
+- **Review findings and remediation:** logged review/implementation/test-agent activity is consistent with the work. `logs/evidence/pr-review-findings.md` documents F-01–F-05 and N-01–N-03, proposed dispositions, supporting evidence, and later updates. It is an evidence summary, not a complete independent-review transcript; historical proposed-verdict language should be read alongside the later update and assignment record.
+- **Human oversight:** user-prompt events and 2 `AskUserQuestion` tool records show human interaction, but the JSONL has no complete structured decisions or approvals. Final human acceptance is documented in a repository PR comment, not in this local event log; the findings document does not claim a formal GitHub approval review.
 
-The raw log contains sensitive material and remains ignored/untracked; do not submit it. The sanitized export passed a post-export scan for the redaction patterns above. The raw log is not suitable for sharing.
+## Redaction inspection and residual risks
 
-Limitations: model metadata is absent; event names are missing on some records; timestamps have mixed formats; subagent starts are not captured despite stop records; prompt/tool records are not a complete conversation transcript; explicit human decisions are not consistently structured; and this log alone cannot prove all actions, reviews, or outcomes. Timestamp values may also reflect clock skew relative to the audit environment.
+The written JSONL was parsed again and recursively inspected across decoded fields and keys. No residual matches were found for the automated categories below; sensitive-key values and environment subtrees were checked structurally. Zero matches are a limited pattern-based check, not proof of perfect confidentiality. Novel secrets, indirect identifiers, encoded values, or sensitive semantics outside these patterns may remain. Prompt and unstructured tool-output text was redacted wholesale to reduce this risk while retaining structured evidence.
+
+| Redaction category | Replacements / omitted fields |
+|---|---:|
+| demo account identifiers | 264 |
+| demo passwords | 88 |
+| local usernames | 2 |
+| private paths | 3,383 |
+| sensitive text fields | 2,233 |
+| tilde paths | 9 |
+
+Post-export decoded-field checks: **0** private-path, email, username, demo-account/password, bearer/basic/auth-header, provider-token, credential-assignment, environment-assignment, or private-key matches; no sensitive-key values remain unredacted; no environment fields remain. The hook verifier passed. The raw file remains Git-ignored and untracked, and is not included in the submission export.
+
+## Limitations
+
+- No model metadata is available.
+- **30** records lack event names; timestamps are mixed string and numeric epoch-millisecond formats.
+- Subagent starts are absent while stops are present; traces are incomplete.
+- Prompts/tool outputs are intentionally redacted, and event history is not a complete conversation transcript.
+- Human decisions are not fully structured in the log; final acceptance is documented elsewhere.
+- Pattern-based redaction and this automated scan cannot prove confidentiality or find every sensitive value.
+- This audit ran the logging-hook verifier and export checks, not the application test suite or OpenSpec validation.
 
 ## Output files
 
-- `logs/ai-interactions-submission.jsonl` — sanitized event snapshot.
-- `logs/ai-interactions-summary.md` — this evidence summary.
+- `logs/ai-interactions-submission.jsonl` — complete sanitized point-in-time JSONL snapshot.
+- `logs/ai-interactions-summary.md` — count-checked evidence summary.
